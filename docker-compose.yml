@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    ports:
+      - "${PORT:-8501}:8501"
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_KEY: ${SUPABASE_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      SUPER_ADMIN_USERNAME: ${SUPER_ADMIN_USERNAME:-admin}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
+      # 선택: 커스텀 DeepSeek 엔드포인트
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL}
+    command: streamlit run app.py --server.port 8501 --server.headless true
+    restart: unless-stopped

@@ -1,0 +1,21 @@
+# AI Learning Assistant - requirements
+# Install with: pip install -r requirements.txt
+
+streamlit>=1.30.0
+supabase>=2.3.0
+realtime>=1.0.0
+langchain>=0.1.0
+langchain-openai>=0.0.5
+openai>=1.0.0
+edge-tts>=6.1.9
+python-dotenv>=1.0.0
+pandas>=2.1.0
+plotly>=5.18.0
+pillow>=10.0.0
+bcrypt>=4.1.0
+pydantic>=2.0.0
+python-docx>=1.1.2
+websockets>=13.0,<14.0
+# Note: 이전에는 realtime 모듈 모킹으로 우회했으나,
+# 이제 공식 realtime 패키지를 설치하여 사용합니다.
+

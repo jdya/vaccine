@@ -1,0 +1,25 @@
+# ========================================
+# AI 학습 도우미 - 환경 변수 템플릿
+# ========================================
+# 이 파일을 복사해서 .env 파일을 만들고
+# 실제 값을 입력하세요
+# 
+# 복사 방법:
+# Windows: copy env_example.txt .env
+# Mac/Linux: cp env_example.txt .env
+# ========================================
+
+# Supabase 데이터베이스 설정
+# https://supabase.com에서 프로젝트 만든 후 발급받으세요
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your_supabase_anon_key_here
+
+# DeepSeek AI 설정
+# https://platform.deepseek.com에서 API 키 발급받으세요
+DEEPSEEK_API_KEY=sk-your-deepseek-api-key-here
+
+# 최초 관리자 계정 (서비스 운영자)
+# 처음 실행하면 이 계정이 자동으로 생성됩니다
+SUPER_ADMIN_USERNAME=admin
+SUPER_ADMIN_PASSWORD=change_this_to_strong_password
+
