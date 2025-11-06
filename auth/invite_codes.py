@@ -68,3 +68,4 @@ def create_student_code(teacher_user_id: int, class_name: str | None = None, use
     except Exception as e:
         debug_print(f"학생 코드 생성 오류: {str(e)}", "ERROR")
         return None
+

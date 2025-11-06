@@ -121,3 +121,4 @@ def generate_quiz(category: str, grade: str | None, quiz_type: QuizType = "multi
     except Exception as e:
         debug_print(f"퀴즈 생성 중 알 수 없는 오류: {str(e)}", "ERROR")
         return _fallback_quiz(quiz_type, count)
+

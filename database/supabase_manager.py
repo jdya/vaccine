@@ -1055,3 +1055,307 @@ def list_question_bank_items(created_by: int, category: str | None = None, searc
         debug_print(f"문제은행 목록 조회 오류: {str(e)}", "ERROR")
         return []
 
+
+# ========================================
+# 과제 관리 (교사/학생)
+# ========================================
+
+def create_assignment(created_by: int, title: str, description: str | None = None, grade: str | None = None, due_date: datetime | None = None, is_active: bool = True):
+    """
+    과제 생성 (교사용)
+    """
+    try:
+        client = get_supabase_client()
+        if not client:
+            return None
+        data = {
+            'created_by': created_by,
+            'title': title,
+            'description': description,
+            'target_grade': grade,
+            'due_date': due_date.isoformat() if due_date else None,
+            'is_active': is_active,
+            'created_at': datetime.now().isoformat(),
+        }
+        res = client.table('assignments').insert(data).execute()
+        return res.data[0] if res.data else None
+    except Exception as e:
+        debug_print(f"과제 생성 오류: {str(e)}", "ERROR")
+        return None
+
+
+def list_assignments(created_by: int | None = None, grade: str | None = None, active_only: bool = True, limit: int = 200):
+    """
+    과제 목록 조회
+    created_by가 있으면 해당 교사가 만든 과제만, 없으면 전체
+    grade 필터는 앱 단에서 후처리로도 적용합니다 (NULL 포함 처리 위해)
+    """
+    try:
+        client = get_supabase_client()
+        if not client:
+            return []
+        q = client.table('assignments').select('*')
+        if created_by is not None:
+            q = q.eq('created_by', created_by)
+        if active_only:
+            q = q.eq('is_active', True)
+        res = q.order('created_at', desc=True).limit(limit).execute()
+        rows = res.data or []
+        # grade 필터 후처리 (NULL 허용)
+        if grade:
+            rows = [r for r in rows if (r.get('target_grade') is None) or (r.get('target_grade') == grade)]
+        return rows
+    except Exception as e:
+        debug_print(f"과제 목록 조회 오류: {str(e)}", "ERROR")
+        return []
+
+
+def get_assignment_by_id(assignment_id: int):
+    """과제 단건 조회"""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return None
+        res = client.table('assignments').select('*').eq('id', assignment_id).limit(1).execute()
+        return res.data[0] if res.data else None
+    except Exception as e:
+        debug_print(f"과제 조회 오류: {str(e)}", "ERROR")
+        return None
+
+
+def get_student_submission(assignment_id: int, student_id: int):
+    """학생의 과제 제출/선택 상태 조회"""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return None
+        res = client.table('assignment_submissions').select('*')\
+            .eq('assignment_id', assignment_id).eq('student_id', student_id).limit(1).execute()
+        return res.data[0] if res.data else None
+    except Exception as e:
+        debug_print(f"과제 제출 조회 오류: {str(e)}", "ERROR")
+        return None
+
+
+def select_assignment(assignment_id: int, student_id: int):
+    """
+    학생이 과제를 선택 (assignment_submissions 생성/갱신)
+    """
+    try:
+        client = get_supabase_client()
+        if not client:
+            return False
+        # 기존 제출 내역 확인
+        existing = client.table('assignment_submissions').select('*')\
+            .eq('assignment_id', assignment_id).eq('student_id', student_id).limit(1).execute()
+        now_iso = datetime.now().isoformat()
+        if existing.data:
+            # 갱신
+            client.table('assignment_submissions').update({
+                'status': 'selected',
+            }).eq('id', existing.data[0]['id']).execute()
+        else:
+            # 신규 생성
+            client.table('assignment_submissions').insert({
+                'assignment_id': assignment_id,
+                'student_id': student_id,
+                'status': 'selected',
+                # created_at은 기본값으로 현재 시각 저장됨
+            }).execute()
+        return True
+    except Exception as e:
+        debug_print(f"과제 선택 처리 오류: {str(e)}", "ERROR")
+        return False
+
+
+def submit_assignment(assignment_id: int, student_id: int, answers: dict | None = None):
+    """
+    학생이 과제 제출 (텍스트/문항 답안을 answers에 JSON으로 저장)
+    기존 선택 레코드가 있으면 갱신, 없으면 생성
+    """
+    try:
+        client = get_supabase_client()
+        if not client:
+            return False
+        existing = client.table('assignment_submissions').select('*')\
+            .eq('assignment_id', assignment_id).eq('student_id', student_id).limit(1).execute()
+        now_iso = datetime.now().isoformat()
+        # 텍스트 답안만 사용하는 스키마에 맞춰 매핑
+        text_answer = None
+        if isinstance(answers, dict):
+            text_answer = answers.get('text')
+        elif isinstance(answers, str):
+            text_answer = answers
+        payload = {
+            'answer_text': text_answer or '',
+            'status': 'submitted',
+            'submitted_at': now_iso,
+        }
+        if existing.data:
+            client.table('assignment_submissions').update(payload).eq('id', existing.data[0]['id']).execute()
+        else:
+            payload.update({
+                'assignment_id': assignment_id,
+                'student_id': student_id,
+                'selected_at': now_iso,
+            })
+            client.table('assignment_submissions').insert(payload).execute()
+        return True
+    except Exception as e:
+        debug_print(f"과제 제출 처리 오류: {str(e)}", "ERROR")
+        return False
+
+
+def list_submissions(assignment_id: int):
+    """특정 과제의 모든 제출/선택 현황 조회 (교사용)"""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return []
+        res = client.table('assignment_submissions').select('*').eq('assignment_id', assignment_id).order('created_at', desc=True).execute()
+        return res.data or []
+    except Exception as e:
+        debug_print(f"과제 제출 목록 조회 오류: {str(e)}", "ERROR")
+        return []
+
+
+def grade_submission(submission_id: int, score: int | None = None, feedback: str | None = None):
+    """교사가 과제 채점"""
+    try:
+        client = get_supabase_client()
+        if not client:
+            return False
+        client.table('assignment_submissions').update({
+            'score': score,
+            'feedback': feedback,
+            'graded_at': datetime.now().isoformat(),
+            'status': 'graded',
+        }).eq('id', submission_id).execute()
+        return True
+    except Exception as e:
+        debug_print(f"과제 채점 처리 오류: {str(e)}", "ERROR")
+        return False
+
+
+def assignment_stats(assignment_id: int):
+    """
+    과제별 간단 통계 집계 (선택/제출/채점 수, 평균 점수)
+    """
+    try:
+        client = get_supabase_client()
+        if not client:
+            return {
+                'selected': 0,
+                'submitted': 0,
+                'graded': 0,
+                'avg_score': None,
+            }
+        res = client.table('assignment_submissions').select('*').eq('assignment_id', assignment_id).execute()
+        rows = res.data or []
+        selected = sum(1 for r in rows if r.get('status') == 'selected')
+        submitted = sum(1 for r in rows if r.get('status') == 'submitted')
+        graded = sum(1 for r in rows if r.get('status') == 'graded')
+        scores = [r.get('score') for r in rows if r.get('score') is not None]
+        avg_score = (sum(scores) / len(scores)) if scores else None
+        return {
+            'selected': selected,
+            'submitted': submitted,
+            'graded': graded,
+            'avg_score': avg_score,
+        }
+    except Exception as e:
+        debug_print(f"과제 통계 조회 오류: {str(e)}", "ERROR")
+        return {
+            'selected': 0,
+            'submitted': 0,
+            'graded': 0,
+            'avg_score': None,
+        }
+
+
+# ========================================
+# 문서/RAG 헬퍼
+# ========================================
+
+def create_document(user_id: int, title: str | None, file_name: str, content_type: str | None):
+    """
+    문서 메타 생성 후 행 반환
+    """
+    try:
+        client = get_supabase_client()
+        if not client:
+            return None
+        data = {
+            'user_id': user_id,
+            'title': title or file_name,
+            'file_name': file_name,
+            'content_type': content_type,
+            'created_at': datetime.now().isoformat()
+        }
+        res = client.table('documents').insert(data).execute()
+        return res.data[0] if res.data else None
+    except Exception as e:
+        debug_print(f"문서 생성 오류: {str(e)}", "ERROR")
+        return None
+
+
+def add_document_chunk(document_id: int, user_id: int, content: str, embedding: list[float], chunk_index: int, metadata: dict | None = None):
+    """
+    문서 청크와 임베딩 저장
+    """
+    try:
+        client = get_supabase_client()
+        if not client:
+            return False
+        data = {
+            'document_id': document_id,
+            'user_id': user_id,
+            'chunk_index': chunk_index,
+            'content': content,
+            'embedding': embedding,
+            'metadata': metadata or {},
+            'created_at': datetime.now().isoformat()
+        }
+        client.table('document_chunks').insert(data).execute()
+        return True
+    except Exception as e:
+        # 업로드 시 수백 개 청크에서 동일 오류가 반복되어 콘솔이 과도하게 지저분해질 수 있어
+        # 개별 청크 오류 로그는 생략하고, 호출측(UI)에서 실패 개수만 요약 표시합니다.
+        return False
+
+
+def search_document_chunks(user_id: int, query_embedding: list[float], match_count: int = 5, document_id: int | None = None):
+    """
+    RPC를 통해 사용자 문서 청크 중에서 유사도 높은 상위 결과를 반환합니다.
+    """
+    try:
+        client = get_supabase_client()
+        if not client:
+            return []
+        params = {
+            'query_embedding': query_embedding,
+            'match_count': match_count,
+            'user_id_input': user_id,
+            'document_id_input': document_id
+        }
+        res = client.rpc('match_document_chunks', params).execute()
+        return res.data or []
+    except Exception as e:
+        debug_print(f"문서 청크 검색 오류: {str(e)}", "ERROR")
+        return []
+
+
+def list_documents(user_id: int):
+    """
+    사용자 문서 목록 반환
+    """
+    try:
+        client = get_supabase_client()
+        if not client:
+            return []
+        res = client.table('documents').select('*').eq('user_id', user_id).order('created_at', desc=True).execute()
+        return res.data or []
+    except Exception as e:
+        debug_print(f"문서 목록 조회 오류: {str(e)}", "ERROR")
+        return []
+

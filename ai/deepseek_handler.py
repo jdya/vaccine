@@ -162,3 +162,4 @@ def stream_chat_response(
     except Exception as e:
         debug_print(f"알 수 없는 오류 (stream): {str(e)}", "ERROR")
         yield "AI 처리 중 알 수 없는 오류가 발생했어요."
+

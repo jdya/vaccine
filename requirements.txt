@@ -19,3 +19,7 @@ websockets>=13.0,<14.0
 # Note: 이전에는 realtime 모듈 모킹으로 우회했으나,
 # 이제 공식 realtime 패키지를 설치하여 사용합니다.
 
+# RAG/문서 기능
+pymupdf>=1.24.0
+sentence-transformers>=2.2.2
+

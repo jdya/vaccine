@@ -95,3 +95,4 @@ def synthesize_to_file(text: str, filename: str = "tts_output.mp3", voice: str |
     except Exception as e:
         debug_print(f"TTS 오류: {str(e)}", "ERROR")
         return None
+

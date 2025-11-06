@@ -209,3 +209,113 @@ CREATE INDEX IF NOT EXISTS idx_question_bank_created_at ON question_bank(created
 -- 이제 Python 코드에서 사용할 수 있습니다.
 -- ========================================
 
+-- ========================================
+-- 11. 과제 테이블 (교사용)
+-- 교사가 생성한 과제를 저장합니다
+CREATE TABLE IF NOT EXISTS assignments (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,               -- 과제 제목
+  description TEXT,                  -- 과제 설명/지시사항
+  created_by INTEGER REFERENCES users(id), -- 만든 교사 ID
+  target_grade TEXT,                 -- 대상 학년 (선택)
+  due_date TIMESTAMP,                -- 마감일 (선택)
+  is_active BOOLEAN DEFAULT TRUE,    -- 활성 여부
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_assignments_created_by ON assignments(created_by);
+CREATE INDEX IF NOT EXISTS idx_assignments_due_date ON assignments(due_date DESC);
+
+-- 12. 과제 제출 테이블 (학생용)
+-- 학생이 과제를 선택/제출/채점받은 기록을 저장합니다
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+  id SERIAL PRIMARY KEY,
+  assignment_id INTEGER REFERENCES assignments(id) ON DELETE CASCADE,
+  student_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT CHECK (status IN ('selected','submitted','graded')) DEFAULT 'selected',
+  answer_text TEXT,                  -- 학생 답안 텍스트
+  score INTEGER,                     -- 점수 (선택)
+  feedback TEXT,                     -- 교사 피드백 (선택)
+  selected_at TIMESTAMP DEFAULT NOW(),
+  submitted_at TIMESTAMP,
+  graded_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(assignment_id, student_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_submissions_assignment ON assignment_submissions(assignment_id);
+CREATE INDEX IF NOT EXISTS idx_submissions_student ON assignment_submissions(student_id);
+
+
+-- ========================================
+-- 13. 문서/RAG 테이블 및 벡터 검색 함수
+-- NotebookLM 유사 기능 구현을 위한 스키마
+-- ========================================
+
+-- pgvector 확장
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- 문서 메타 테이블
+CREATE TABLE IF NOT EXISTS documents (
+  id BIGSERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT,
+  file_name TEXT,
+  content_type TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Row Level Security: 이 프로젝트는 Supabase Auth를 사용하지 않으므로 비활성화하여 애플리케이션 키(anon)로 접근 가능하게 합니다
+ALTER TABLE documents DISABLE ROW LEVEL SECURITY;
+
+-- 문서 청크 테이블 (임베딩 저장)
+CREATE TABLE IF NOT EXISTS document_chunks (
+  id BIGSERIAL PRIMARY KEY,
+  document_id BIGINT REFERENCES documents(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  chunk_index INTEGER,
+  content TEXT,
+  embedding VECTOR(384),
+  metadata JSONB,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- RLS 비활성화: 애플리케이션에서 자체 사용자 테이블을 사용하므로 권한 관리는 앱에서 처리합니다
+ALTER TABLE document_chunks DISABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS idx_document_chunks_document ON document_chunks(document_id);
+CREATE INDEX IF NOT EXISTS idx_document_chunks_user ON document_chunks(user_id);
+-- 코사인 유사도용 벡터 인덱스 (성능 향상). 테이블에 데이터가 충분히 있을 때 생성 권장
+CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding ON document_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists=100);
+
+-- 벡터 검색 RPC: 쿼리 임베딩과 가장 가까운 청크를 반환
+CREATE OR REPLACE FUNCTION match_document_chunks(
+  query_embedding VECTOR(384),
+  match_count INT,
+  user_id_input INT,
+  document_id_input BIGINT DEFAULT NULL
+)
+RETURNS TABLE(
+  id BIGINT,
+  document_id BIGINT,
+  content TEXT,
+  metadata JSONB,
+  similarity FLOAT
+)
+LANGUAGE SQL STABLE AS $$
+  SELECT dc.id, dc.document_id, dc.content, dc.metadata,
+         1 - (dc.embedding <=> query_embedding) AS similarity
+  FROM document_chunks dc
+  WHERE dc.user_id = user_id_input
+    AND (document_id_input IS NULL OR dc.document_id = document_id_input)
+  ORDER BY dc.embedding <-> query_embedding
+  LIMIT match_count;
+$$;
+
+-- 새 카테고리 추가 (중복 삽입 방지)
+INSERT INTO categories (name, icon, display_name, description, target_role) VALUES
+('stocks', '📈', '주식 개요', '시장/종목 학습 보조', 'teacher'),
+('stocks_expert', '🧠', '주식 챗봇', '교육용 분석', 'teacher'),
+('doc_assistant', '📄', '문서 도우미', '업로드 문서 기반 설명', 'teacher')
+ON CONFLICT (name) DO NOTHING;
+

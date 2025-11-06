@@ -639,6 +639,7 @@ def render_sidebar_navigation():
         st.page_link("pages/2_quiz.py", label="퀴즈")
         st.page_link("pages/10_counseling_student.py", label="학생 고민 상담")
         st.page_link("pages/3_vocabulary.py", label="단어장")
+        st.page_link("pages/19_assignments_student.py", label="과제 게시판")
 
         st.divider()
 
@@ -647,6 +648,11 @@ def render_sidebar_navigation():
         st.page_link("pages/6_invite_codes.py", label="코드 초대")
         st.page_link("pages/16_question_bank.py", label="문제은행")
         st.page_link("pages/17_lesson_prep.py", label="수업준비")
+        st.page_link("pages/18_assignments_teacher.py", label="과제 출제")
+        st.page_link("pages/20_teacher_stocks.py", label="주식")
+        st.page_link("pages/21_stock_worry.py", label="주식 고민")
+        st.page_link("pages/22_stock_chatbot.py", label="주식 챗봇")
+        st.page_link("pages/23_doc_assistant.py", label="문서 도우미")
         st.page_link("pages/8_counseling_education.py", label="교육 상담")
         st.page_link("pages/9_record.py", label="생기부")
         st.page_link("pages/4_stats.py", label="통계")
