@@ -580,6 +580,24 @@ def render_sidebar_auth_controls():
                     st.session_state.show_signup_form = True
                     st.session_state.show_login_form = False
 
+        # --- 개발자 모드 토글 ---
+        try:
+            st.divider()
+            dev_label = "개발자 모드"
+            # 기본값 True, 세션 키는 'dev_mode'로 유지
+            st.checkbox(dev_label, value=bool(st.session_state.get('dev_mode', True)), key='dev_mode')
+            st.caption("테스트 계정 자동 로그인: 아이디 `test`, 비번 `test1234!`")
+            # 토글이 켜져 있고 아직 로그인되지 않은 경우 자동 로그인 시도
+            if st.session_state.get('dev_mode', False) and not is_logged_in():
+                try:
+                    from utils.session_manager import _dev_auto_login_if_enabled
+                    _dev_auto_login_if_enabled()
+                    st.rerun()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         # --- AI 반응 설정 (왼쪽 하단) ---
         try:
             st.divider()
@@ -636,10 +654,18 @@ def render_sidebar_navigation():
         st.page_link("pages/13_learning_english.py", label="영어 학습")
         st.page_link("pages/14_learning_math.py", label="수학 학습")
         st.page_link("pages/15_learning_science.py", label="과학 학습")
+        st.page_link("pages/26_learning_history.py", label="역사 학습")
+        st.page_link("pages/27_learning_reading.py", label="독서 학습")
+        st.page_link("pages/28_learning_english_grammar.py", label="영어문법 학습")
+        st.page_link("pages/29_learning_korean.py", label="국어 학습")
+        st.page_link("pages/30_learning_coding.py", label="코딩 학습")
+        st.page_link("pages/31_learning_free.py", label="자유 학습")
         st.page_link("pages/2_quiz.py", label="퀴즈")
         st.page_link("pages/10_counseling_student.py", label="학생 고민 상담")
         st.page_link("pages/3_vocabulary.py", label="단어장")
         st.page_link("pages/19_assignments_student.py", label="과제 게시판")
+        st.page_link("pages/24_korean_outline_student.py", label="국어 글쓰기 개요")
+        st.page_link("pages/32_girlfriend_mode.py", label="여친 모드")
 
         st.divider()
 
@@ -647,11 +673,14 @@ def render_sidebar_navigation():
         st.page_link("pages/5_student_management.py", label="학생 관리")
         st.page_link("pages/6_invite_codes.py", label="코드 초대")
         st.page_link("pages/16_question_bank.py", label="문제은행")
+        st.page_link("pages/34_ms_question_bank.py", label="중학교 문제은행")
         st.page_link("pages/17_lesson_prep.py", label="수업준비")
         st.page_link("pages/18_assignments_teacher.py", label="과제 출제")
         st.page_link("pages/20_teacher_stocks.py", label="주식")
         st.page_link("pages/21_stock_worry.py", label="주식 고민")
         st.page_link("pages/22_stock_chatbot.py", label="주식 챗봇")
+        st.page_link("pages/25_stock_trends.py", label="주식 트렌드")
+        st.page_link("pages/33_stock_recommendations.py", label="추천주식")
         st.page_link("pages/23_doc_assistant.py", label="문서 도우미")
         st.page_link("pages/8_counseling_education.py", label="교육 상담")
         st.page_link("pages/9_record.py", label="생기부")

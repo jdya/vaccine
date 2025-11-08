@@ -38,6 +38,14 @@ def debug_print(message, level="INFO"):
         print(f"{color}[{level}]{reset} {message}")
 
 
+# 문자열 환경 값을 안전하게 불리언으로 변환
+def _as_bool(value) -> bool:
+    try:
+        return str(value).strip().lower() in ("1", "true", "yes", "y", "on")
+    except Exception:
+        return False
+
+
 # ========================================
 # 한글 경로 처리
 # ========================================
@@ -128,6 +136,10 @@ DEEPSEEK_API_KEY = get_env("DEEPSEEK_API_KEY")
 # 최초 관리자 계정
 SUPER_ADMIN_USERNAME = get_env("SUPER_ADMIN_USERNAME", "admin")
 SUPER_ADMIN_PASSWORD = get_env("SUPER_ADMIN_PASSWORD")
+
+# 개발 모드 로그인 우회 플래그
+# DEBUG_MODE가 True일 때 기본적으로 활성화되며, 환경 변수로 제어할 수 있습니다.
+DEV_SKIP_AUTH = _as_bool(get_env("DEV_SKIP_AUTH", "true" if DEBUG_MODE else "false"))
 
 
 # ========================================

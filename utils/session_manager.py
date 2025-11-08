@@ -9,6 +9,7 @@
 
 import streamlit as st
 from datetime import datetime, timedelta
+import config
 
 
 # ========================================
@@ -91,8 +92,18 @@ def init_session():
     # 페이지별 개별 대화 세션 ID 보관소
     if 'page_session_ids' not in st.session_state:
         st.session_state.page_session_ids = {}
+
+    # 개발자 모드 (사이드바 토글) 기본값: True
+    if 'dev_mode' not in st.session_state:
+        st.session_state.dev_mode = True
     
     debug_print("세션 초기화 완료", "SUCCESS")
+
+    # 개발 모드에서 자동 로그인 우회 시도 (최초 초기화 시점)
+    try:
+        _dev_auto_login_if_enabled()
+    except Exception as e:
+        debug_print(f"개발 모드 자동 로그인 시도 중 오류: {str(e)}", "WARNING")
 
 
 # ========================================
@@ -388,11 +399,67 @@ def load_session_messages(session_id: str):
 # 권한 확인
 # ========================================
 
+def _dev_auto_login_if_enabled():
+    """개발 모드에서 로그인 우회: 설정/토글이 켜져 있으면 교사 계정(test)으로 자동 로그인합니다."""
+    try:
+        dev_enabled = getattr(config, 'DEV_SKIP_AUTH', False) or st.session_state.get('dev_mode', False)
+        if dev_enabled and not is_logged_in():
+            # 가능한 경우 DB에 dev 계정 확보, 실패 시 메모리 세션만 설정
+            user_data = None
+            try:
+                from database import supabase_manager as db
+                # 기존 dev 계정 조회
+                user_data = db.get_user_by_username('test')
+                if not user_data:
+                    # 새 dev 계정 생성 시도
+                    try:
+                        from auth.auth_manager import hash_password
+                        pw_hash = hash_password('test1234!')
+                        user_data = db.create_user(
+                            username='test',
+                            password_hash=pw_hash,
+                            full_name='테스트 교사',
+                            role='teacher',
+                            grade='중학생',
+                            invite_code_used='DEV',
+                            created_by=None,
+                        )
+                    except Exception as ce:
+                        debug_print(f"DEV 사용자 생성 실패: {str(ce)}", "WARNING")
+                        user_data = None
+            except Exception as de:
+                debug_print(f"DEV 사용자 확보 실패: {str(de)}", "WARNING")
+                user_data = None
+
+            # 세션에 로그인 설정 (DB 유무와 관계없이)
+            if user_data:
+                login_user({
+                    'id': user_data.get('id'),
+                    'username': user_data.get('username', 'test'),
+                    'full_name': user_data.get('full_name', '테스트 교사'),
+                    'role': user_data.get('role', 'teacher'),
+                    'grade': user_data.get('grade', '중학생'),
+                })
+            else:
+                # DB가 없거나 실패한 경우, 메모리 세션에만 로그인
+                login_user({
+                    'id': None,
+                    'username': 'test',
+                    'full_name': '테스트 교사',
+                    'role': 'teacher',
+                    'grade': '중학생',
+                })
+            debug_print("개발 모드 자동 로그인 완료", "SUCCESS")
+    except Exception as e:
+        debug_print(f"개발 모드 자동 로그인 오류: {str(e)}", "ERROR")
+
 def require_login():
     """
     로그인이 필요한 페이지에서 사용
     로그인하지 않았으면 경고 표시 후 중단
     """
+    # 개발 모드 자동 로그인 우회
+    _dev_auto_login_if_enabled()
     if not is_logged_in():
         st.warning("⚠️ 로그인이 필요합니다!")
         st.info("오른쪽 상단 '로그인' 버튼을 눌러 로그인해주세요.")
@@ -406,6 +473,7 @@ def require_role(required_role):
     매개변수:
         required_role: 필요한 역할 ('super_admin', 'teacher', 'student')
     """
+    _dev_auto_login_if_enabled()
     require_login()
     
     current_role = get_user_role()
@@ -417,6 +485,7 @@ def require_role(required_role):
 
 def require_teacher_or_admin():
     """교사 또는 관리자만 접근 가능"""
+    _dev_auto_login_if_enabled()
     require_login()
     
     if not (is_teacher() or is_admin()):
@@ -428,5 +497,4 @@ def require_teacher_or_admin():
 # 완료!
 # ========================================
 debug_print("session_manager.py 로드 완료!", "SUCCESS")
-
 
